@@ -99,80 +99,80 @@ MDROBOT 드라이버는 내부 펌웨어에 따라 특정 PID는 "쓰기+읽기"
 
 <--- ver 1 모터 하나 테스트--->
 
-# #!/usr/bin/env python3
-# import rospy
-# import serial
-# import struct
-# from geometry_msgs.msg import Twist
+#!/usr/bin/env python3
+import rospy
+import serial
+import struct
+from geometry_msgs.msg import Twist
 
-# class RS485MotorController:
-#     def __init__(self):
-#         # ROS 노드 초기화
-#         rospy.init_node("rs485_motor_controller", anonymous=True)
+class RS485MotorController:
+    def __init__(self):
+        # ROS 노드 초기화
+        rospy.init_node("rs485_motor_controller", anonymous=True)
 
-#         # Launch 파일 파라미터 가져오기
-#         self.port = rospy.get_param("~serial_port", "/dev/ttyUSB0")
-#         self.baudrate = rospy.get_param("~serial_baudrate", 57600)
-#         self.wheel_radius = rospy.get_param("~wheel_radius", 0.065)
-#         self.wheel_length = rospy.get_param("~wheel_length", 0.41)
-#         self.reduction = rospy.get_param("~reduction", 4.33)
-#         self.reverse_direction = rospy.get_param("~reverse_direction", 0)
-#         self.maxrpm = rospy.get_param("~maxrpm", 430)
-#         self.enable_encoder = rospy.get_param("~enable_encoder", 1)
-#         self.encoder_ppr = rospy.get_param("~encoder_PPR", 4096)
-#         self.slow_start = rospy.get_param("~slow_start", 300)
-#         self.slow_down = rospy.get_param("~slow_down", 300)
+        # Launch 파일 파라미터 가져오기
+        self.port = rospy.get_param("~serial_port", "/dev/ttyUSB0")
+        self.baudrate = rospy.get_param("~serial_baudrate", 57600)
+        self.wheel_radius = rospy.get_param("~wheel_radius", 0.065)
+        self.wheel_length = rospy.get_param("~wheel_length", 0.41)
+        self.reduction = rospy.get_param("~reduction", 4.33)
+        self.reverse_direction = rospy.get_param("~reverse_direction", 0)
+        self.maxrpm = rospy.get_param("~maxrpm", 430)
+        self.enable_encoder = rospy.get_param("~enable_encoder", 1)
+        self.encoder_ppr = rospy.get_param("~encoder_PPR", 4096)
+        self.slow_start = rospy.get_param("~slow_start", 300)
+        self.slow_down = rospy.get_param("~slow_down", 300)
 
-#         # RS485 포트 설정
-#         self.ser = serial.Serial(self.port, self.baudrate, timeout=0.1)
+        # RS485 포트 설정
+        self.ser = serial.Serial(self.port, self.baudrate, timeout=0.1)
 
-#         # ROS 구독자 설정 (/cmd_vel 토픽 수신)
-#         rospy.Subscriber("/cmd_vel", Twist, self.cmd_vel_callback)
+        # ROS 구독자 설정 (/cmd_vel 토픽 수신)
+        rospy.Subscriber("/cmd_vel", Twist, self.cmd_vel_callback)
 
-#         self.send_rs485_command(0x05, [0x00])  # 모터 활성화
-#         self.send_rs485_command(0x11, [0x00])  # RUN/BRAKE 핀 비활성화
+        self.send_rs485_command(0x05, [0x00])  # 모터 활성화
+        self.send_rs485_command(0x11, [0x00])  # RUN/BRAKE 핀 비활성화
 
-#         rospy.loginfo(f"RS485 Motor Controller Node Started (Port: {self.port}, Baudrate: {self.baudrate})")
+        rospy.loginfo(f"RS485 Motor Controller Node Started (Port: {self.port}, Baudrate: {self.baudrate})")
 
-#     def calculate_checksum(self, data):
-#         """ 체크섬 계산 """
-#         checksum = (~sum(data) & 0xFF) + 1
-#         return checksum & 0xFF
+    def calculate_checksum(self, data):
+        """ 체크섬 계산 """
+        checksum = (~sum(data) & 0xFF) + 1
+        return checksum & 0xFF
 
-#     def send_rs485_command(self, pid, data):
-#         """ RS485 패킷 생성 및 전송 """
-#         packet = [0xB7, 0xB8, 0x01, pid, len(data)] + data
-#         packet.append(self.calculate_checksum(packet))
-#         self.ser.write(bytearray(packet))
-#         rospy.loginfo(f"Sent: {packet}")
+    def send_rs485_command(self, pid, data):
+        """ RS485 패킷 생성 및 전송 """
+        packet = [0xB7, 0xB8, 0x01, pid, len(data)] + data
+        packet.append(self.calculate_checksum(packet))
+        self.ser.write(bytearray(packet))
+        rospy.loginfo(f"Sent: {packet}")
 
-#     def cmd_vel_callback(self, msg):
-#         """ /cmd_vel 메시지를 받아 속도 명령 전송 """
-#         linear_x = msg.linear.x  # 전진/후진 속도
-#         angular_z = msg.angular.z  # 회전 속도
+    def cmd_vel_callback(self, msg):
+        """ /cmd_vel 메시지를 받아 속도 명령 전송 """
+        linear_x = msg.linear.x  # 전진/후진 속도
+        angular_z = msg.angular.z  # 회전 속도
 
-#         # 속도 변환 (m/s → RPM)
-#         rpm = (linear_x / (self.wheel_radius * 3.14)) * 60 / self.reduction
-#         rpm = max(min(rpm, self.maxrpm), -self.maxrpm)  # 속도 제한
+        # 속도 변환 (m/s → RPM)
+        rpm = (linear_x / (self.wheel_radius * 3.14)) * 60 / self.reduction
+        rpm = max(min(rpm, self.maxrpm), -self.maxrpm)  # 속도 제한
 
-#         # 방향 반전 적용
-#         if self.reverse_direction:
-#             rpm = -rpm
+        # 방향 반전 적용
+        if self.reverse_direction:
+            rpm = -rpm
 
-#         rpm_bytes = list(struct.pack(">h", int(rpm)))  # 2바이트 데이터
+        rpm_bytes = list(struct.pack(">h", int(rpm)))  # 2바이트 데이터
 
-#         # (PID 130) 0x82 = left, 0x83 = right
-#         self.send_rs485_command(0x82, rpm_bytes)
+        # (PID 130) 0x82 = left, 0x83 = right
+        self.send_rs485_command(0x82, rpm_bytes)
 
-#     def run(self):
-#         rospy.spin()
+    def run(self):
+        rospy.spin()
 
-# if __name__ == "__main__":
-#     try:
-#         controller = RS485MotorController()
-#         controller.run()
-#     except rospy.ROSInterruptException:
-#         pass
+if __name__ == "__main__":
+    try:
+        controller = RS485MotorController()
+        controller.run()
+    except rospy.ROSInterruptException:
+        pass
 
 
 <--- ver 2 좌우 모터 회전 불일치--->
